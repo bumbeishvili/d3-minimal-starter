@@ -21,7 +21,6 @@ let data = {
     { source: 6, target: 7 },
   ],
 };
-
 const appDiv = document.getElementById('app');
 
 const result = Chart(data, {
@@ -32,42 +31,37 @@ appDiv.appendChild(result);
 
 // Chart function
 function Chart(data, { width, height } = {}) {
-  function ticked() {
-    console.log('ticking');
-  }
   // Create elements
-  const svg = d3.create('svg').attr('width', width).attr('height', height);
-  //  .style('background-color', 'red');
+  const svgElem = d3
+    .create('svg')
+    .attr('width', width)
+    .attr('height', height)
+    .style('overflow', 'visible');
+  //  .style('background', 'red');
 
-  // Initialize the links
+  const svg = svgElem.append('g');
+
   const links = svg
-    .append('g')
-    .attr('class', 'links')
-    .selectAll('line')
+    .selectAll('.links')
     .data(data.links)
     .join('line')
     .attr('stroke', 'black');
 
-  // Initialize the nodes
   const nodes = svg
-    .append('g')
-    .attr('class', 'nodes')
-    .selectAll('circle')
+    .selectAll('.nodes')
     .data(data.nodes)
     .join('circle')
-    .attr('fill', 'pink')
-    .attr('stroke', 'black')
-    .attr('r', 20);
+    .attr('r', 20)
+    .attr('fill', 'pink');
 
   const texts = svg
-    .append('g')
-    .selectAll('text')
+    .selectAll('.texts')
     .data(data.nodes)
     .join('text')
+    .attr('pointer-events', 'none')
+    .text((d) => d.id)
     .attr('text-anchor', 'middle')
-    .attr('alignment-baseline', 'middle')
-    .attr('font-size', 10)
-    .text((d) => d.id);
+    .attr('alignment-baseline', 'middle');
 
   const simulation = d3
     .forceSimulation()
@@ -75,9 +69,7 @@ function Chart(data, { width, height } = {}) {
     .force('centerY', d3.forceY(height / 2))
     .force(
       'link',
-      d3
-        .forceLink() // This force provides links between nodes
-        .id((d) => d.id) // This sets the node id accessor to the specified function. If not specified, will default to the index of a node.
+      d3.forceLink().id((d) => d.id)
     )
     .force('charge', d3.forceManyBody().strength(-500))
     .on('tick', ticked);
@@ -86,19 +78,44 @@ function Chart(data, { width, height } = {}) {
   simulation.force('link').links(data.links);
 
   function ticked() {
-    console.log(data);
+    nodes.attr('cx', (d) => d.x).attr('cy', (d) => d.y);
+    texts.attr('x', (d) => d.x).attr('y', (d) => d.y);
+
     links
       .attr('x1', (d) => d.source.x)
       .attr('y1', (d) => d.source.y)
       .attr('x2', (d) => d.target.x)
       .attr('y2', (d) => d.target.y);
-
-    nodes.attr('cx', (d) => d.x).attr('cy', (d) => d.y);
-
-    texts
-      .attr('x', (d) => d.x) //position of the lower left point of the text
-      .attr('y', (d) => d.y); //position of the lower left point of the text
   }
 
-  return svg.node();
+  svgElem.call(d3.zoom().on('zoom', zoomed));
+
+  function zoomed(e) {
+    svg.attr(
+      'transform',
+      `translate(${e.transform.x},${e.transform.y}) scale(${e.transform.k})`
+    );
+  }
+
+  nodes.call(
+    d3.drag().on('start', dragStarted).on('drag', dragged).on('end', dragended)
+  );
+
+  function dragStarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.y;
+    d.fy = d.y;
+  }
+
+  function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+
+  function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+  return svgElem.node();
 }
